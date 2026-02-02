@@ -1,173 +1,178 @@
 # SVG Paper
+<!-- bdg:begin -->
+[![npm](https://img.shields.io/npm/v/svgpaper.svg)](https://www.npmjs.com/package/svgpaper)
+<!-- bdg:end -->
 
-SVG帳票生成ツール - PDFベースのSVGテンプレートにCSVデータを流し込み印刷
+SVG report generator - Flow CSV data into PDF-based SVG templates for printing
 
-## 概要
+## Overview
 
-このツールは以下のワークフローを実現します：
+This tool enables the following workflow:
 
-1. 現場がExcelで作成した帳票をPDFで提出
-2. システム部門がPDFをSVGテンプレートに変換
-3. n8nなどが業務データをCSV（メタデータ/明細データ）に変換
-4. 帳票エンジンがSVGテンプレートにデータを流し込み、HTML出力
-5. ブラウザで印刷またはPDF保存
+1. Field staff submit forms created in Excel as PDF
+2. IT department converts PDF to SVG templates
+3. n8n or similar tools convert business data to CSV (metadata/detail data)
+4. Report engine flows data into SVG templates and outputs HTML
+5. Print from browser or save as PDF
 
-## 特徴
+## Features
 
-- **宣言的テンプレート**: SVGはid属性で要素を参照、データバインディングはtemplate.jsonで定義
-- **ページング対応**: 1枚目と2枚目以降で異なるSVGテンプレートを使用可能
-- **可変明細**: 明細行数に応じて自動ページ分割
-- **ブラウザ印刷**: 最適化されたHTMLを生成、印刷ダイアログでPDF化可能
-- **型安全性**: TypeScript実装、JSON Schemaによる入力検証
+- **Declarative Templates**: SVG elements referenced by id attributes, data binding defined in template.json
+- **Pagination Support**: Use different SVG templates for first page and subsequent pages
+- **Variable Details**: Automatic page splitting based on number of detail rows
+- **Browser Printing**: Generates optimized HTML, can be saved as PDF via print dialog
+- **Type Safety**: TypeScript implementation with JSON Schema input validation
 
-## インストール
+## Installation
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-## 使い方
+## Usage
 
-### テンプレート開発ワークフロー
+### Template Development Workflow
 
 ```bash
-# 1. PDFからSVGを変換（pdf2svg/inkscape自動選択）
+# 1. Convert PDF to SVG (auto-selects pdf2svg/inkscape)
 svgpaper convert agreed.pdf ./raw/
 
-# 2. SVGを正規化（mm統一、transform展開、クリーンアップ）
+# 2. Normalize SVG (unify mm units, expand transforms, cleanup)
 svgpaper normalize ./raw/ ./normalized/ -s a4
 
-# 3. 新規テンプレートを生成（雛形作成）
+# 3. Generate new template (create boilerplate)
 svgpaper generate invoice v3 -d ./templates
 
-# 4. テキスト要素を確認・ID付与の候補を確認
+# 4. Inspect text elements and identify ID candidates
 svgpaper inspect-text ./templates/invoice/v3/page-1.svg
 
-# 5. template.jsonにフィールドを定義後、検証
+# 5. Define fields in template.json, then validate
 svgpaper validate ./templates/invoice/v3/
 
-# 6. プレビュー生成（ダミーデータで確認）
+# 6. Generate preview (check with dummy data)
 svgpaper preview ./templates/invoice/v3/ -o ./preview -s realistic
 ```
 
-### レンダリング（本番データ）
+### Rendering (Production Data)
 
 ```bash
-# 単一ジョブのレンダリング
+# Render single job
 svgpaper render job.zip
 
-# 出力先を指定
+# Specify output directory
 svgpaper render job.zip -o ./reports
 
-# テンプレートディレクトリを指定
+# Specify template directory
 svgpaper render job.zip -t ./templates
 ```
 
-### テストデータの作成
+### Creating Test Data
 
 ```bash
-# テストジョブzipを作成（明細2行）
+# Create test job zip (2 detail rows)
 pnpx ts-node scripts/create-test-job.ts
 
-# 多ページテスト（明細12行）
+# Multi-page test (12 detail rows)
 pnpx ts-node scripts/create-test-job.ts items-multi.csv
 ```
 
-## ファイル構成
+## File Structure
 
-### ジョブZIP構造
+### Job ZIP Structure
 
 ```
 job.zip
-├── manifest.json    # ジョブ定義（schema, template, inputs）
-├── meta.csv         # メタデータ（key-value形式）
-└── items.csv        # 明細データ（テーブル形式）
+├── manifest.json    # Job definition (schema, template, inputs)
+├── meta.csv         # Metadata (key-value format)
+└── items.csv        # Detail data (table format)
 ```
 
-### テンプレート構造
+### Template Structure
 
 ```
 templates/invoice/v2/
-├── template.json    # テンプレート設定（pages, fields, tables）
-├── page-1.svg       # 1枚目のSVG
-└── page-follow.svg  # 2枚目以降のSVG
+├── template.json    # Template settings (pages, fields, tables)
+├── page-1.svg       # First page SVG
+└── page-follow.svg  # Subsequent pages SVG
 ```
 
-## データ形式
+## Data Formats
 
-### meta.csv（KV形式）
+### meta.csv (KV Format)
 
 ```csv
 key,value
-customer.name,株式会社サンプル
-customer.address,東京都新宿区...
+customer.name,Sample Company Inc.
+customer.address,123 Main St...
 invoice_no,INV-0001
 issue_date,2026-02-02
 total_amount,123456
 ```
 
-### items.csv（テーブル形式）
+### items.csv (Table Format)
 
 ```csv
 name,price,qty
-商品A,100,2
-商品B,200,1
+Product A,100,2
+Product B,200,1
 ```
 
-## アーキテクチャ
+## Architecture
 
 ```
 src/
 ├── core/
-│   ├── datasource.ts          # CSVパーサー（KV/Table）
-│   ├── manifest.ts            # manifest.json検証・読込
-│   ├── template.ts            # template.json検証・読込
-│   ├── template-validator.ts  # テンプレート検証（schema + SVG参照）
-│   ├── template-generator.ts  # 新規テンプレート雛形生成
-│   ├── formatter.ts           # 日付・数値・通貨フォーマット
-│   ├── paginator.ts           # ページ分割ロジック（純関数）
-│   ├── svg-engine.ts          # SVG操作（@xmldom/xmldom + xpath）
-│   ├── svg-normalizer.ts      # SVG正規化（mm統一、transform、クリーン）
-│   ├── text-inspector.ts      # テキスト要素抽出・分析
-│   ├── pdf-converter.ts       # PDF→SVG変換（pdf2svg/inkscape）
-│   ├── renderer.ts            # オーケストレーター
-│   ├── preview-generator.ts   # プレビュー生成（ダミーデータ）
-│   ├── html-writer.ts         # HTML生成
-│   └── zip-handler.ts         # ZIP読込
+│   ├── datasource.ts          # CSV parser (KV/Table)
+│   ├── manifest.ts            # manifest.json validation/loading
+│   ├── template.ts            # template.json validation/loading
+│   ├── template-validator.ts  # Template validation (schema + SVG refs)
+│   ├── template-generator.ts  # New template boilerplate generation
+│   ├── formatter.ts           # Date/number/currency formatting
+│   ├── paginator.ts           # Page splitting logic (pure function)
+│   ├── svg-engine.ts          # SVG manipulation (@xmldom/xmldom + xpath)
+│   ├── svg-normalizer.ts      # SVG normalization (mm units, transform, cleanup)
+│   ├── text-inspector.ts      # Text element extraction/analysis
+│   ├── pdf-converter.ts       # PDF→SVG conversion (pdf2svg/inkscape)
+│   ├── renderer.ts            # Orchestrator
+│   ├── preview-generator.ts   # Preview generation (dummy data)
+│   ├── html-writer.ts         # HTML generation
+│   └── zip-handler.ts         # ZIP loading
 ├── types/
-│   └── index.ts               # 型定義
-├── cli.ts                     # CLIエントリーポイント
-└── index.ts                   # ライブラリエクスポート
+│   └── index.ts               # Type definitions
+├── cli.ts                     # CLI entry point
+└── index.ts                   # Library exports
 ```
 
-## 利用可能なコマンド
+## Available Commands
 
-| コマンド | 説明 | 使用例 |
-|---------|------|--------|
-| `render` | ジョブZIPをレンダリング | `svgpaper render job.zip` |
-| `convert` | PDF→SVG変換（auto fallback） | `svgpaper convert input.pdf ./output/` |
-| `normalize` | SVG正規化 | `svgpaper normalize ./raw/ ./norm/ -s a4` |
-| `validate` | テンプレート検証 | `svgpaper validate ./templates/inv/v1/` |
-| `preview` | プレビュー生成 | `svgpaper preview ./templates/inv/v1/` |
-| `inspect-text` | テキスト要素分析 | `svgpaper inspect-text page-1.svg -j out.json` |
-| `generate` | 新規テンプレート生成 | `svgpaper generate invoice v1 -d ./templates` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `render` | Render job ZIP | `svgpaper render job.zip` |
+| `convert` | PDF→SVG conversion (auto fallback) | `svgpaper convert input.pdf ./output/` |
+| `normalize` | SVG normalization | `svgpaper normalize ./raw/ ./norm/ -s a4` |
+| `validate` | Template validation | `svgpaper validate ./templates/inv/v1/` |
+| `preview` | Preview generation | `svgpaper preview ./templates/inv/v1/` |
+| `inspect-text` | Text element analysis | `svgpaper inspect-text page-1.svg -j out.json` |
+| `generate` | New template generation | `svgpaper generate invoice v1 -d ./templates` |
 
-## 出力構造
+## Output Structure
 
 ```
 out/
 └── <job_id>/
-    ├── index.html              # 印刷用HTML
+    ├── index.html              # Print-ready HTML
     ├── pages/
-    │   ├── page-001.svg       # 個別SVG
+    │   ├── page-001.svg       # Individual SVG
     │   └── page-002.svg
-    └── debug/                  # デバッグ情報
+    └── debug/                  # Debug info
         ├── job.json
         ├── template.json
         └── render.json
 ```
 
-## ライセンス
+## License
 
 MIT
+
+

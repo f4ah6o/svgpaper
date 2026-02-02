@@ -1,0 +1,317 @@
+// core/text-inspector.ts
+// Extract and analyze text elements from SVG for template editing
+
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { DOMParser } from '@xmldom/xmldom';
+import { SVGReportError } from '../types/index.js';
+
+export interface TextElementInfo {
+  id: string | null;
+  content: string;
+  x: number;
+  y: number;
+  fontSize: number | null;
+  fontFamily: string | null;
+  suggestedId: string;
+  isPath: boolean;
+  parentGroup?: string;
+}
+
+export interface SvgTextAnalysis {
+  file: string;
+  pageSize: {
+    width: number;
+    height: number;
+    unit: string;
+  };
+  textElements: TextElementInfo[];
+  statistics: {
+    total: number;
+    withId: number;
+    withoutId: number;
+    pathText: number;
+    averageFontSize: number | null;
+  };
+  warnings: string[];
+}
+
+/**
+ * Extract text elements from SVG file
+ */
+export async function extractTextElements(svgPath: string): Promise<SvgTextAnalysis> {
+  const content = await fs.readFile(svgPath, 'utf-8');
+  
+  const parser = new DOMParser({
+    errorHandler: (level, msg) => {
+      if (level === 'error') {
+        throw new SVGReportError('Failed to parse SVG', svgPath, msg);
+      }
+    },
+  });
+
+  const doc = parser.parseFromString(content, 'image/svg+xml');
+  const svg = doc.documentElement;
+
+  if (!svg || svg.tagName !== 'svg') {
+    throw new SVGReportError('Invalid SVG - no root svg element', svgPath);
+  }
+
+  // Get page dimensions
+  const width = svg.getAttribute('width') || '0';
+  const height = svg.getAttribute('height') || '0';
+  const viewBox = svg.getAttribute('viewBox');
+
+  let widthNum = parseFloat(width);
+  let heightNum = parseFloat(height);
+  let unit = 'px';
+
+  // Try to extract from viewBox if dimensions not set
+  if ((!widthNum || !heightNum) && viewBox) {
+    const parts = viewBox.split(/\s+/).map(parseFloat);
+    if (parts.length === 4) {
+      widthNum = parts[2];
+      heightNum = parts[3];
+    }
+  }
+
+  // Detect unit
+  if (width.includes('mm')) unit = 'mm';
+  else if (width.includes('pt')) unit = 'pt';
+  else if (width.includes('cm')) unit = 'cm';
+
+  // Extract text elements
+  const textElements: TextElementInfo[] = [];
+  const textNodes = Array.from(svg.getElementsByTagName('text'));
+  const warnings: string[] = [];
+  let fontSizeSum = 0;
+  let fontSizeCount = 0;
+
+  for (const text of textNodes) {
+    const id = text.getAttribute('id');
+    const textContent = text.textContent?.trim() || '';
+    const x = parseFloat(text.getAttribute('x') || '0');
+    const y = parseFloat(text.getAttribute('y') || '0');
+    const fontSize = text.getAttribute('font-size');
+    const fontFamily = text.getAttribute('font-family');
+
+    // Find parent group
+    let parentGroup: string | undefined;
+    let parent = text.parentNode;
+    while (parent && parent.nodeType === 1) {
+      const el = parent as Element;
+      if (el.tagName === 'g') {
+        const gid = el.getAttribute('id');
+        if (gid) {
+          parentGroup = gid;
+          break;
+        }
+      }
+      parent = parent.parentNode;
+    }
+
+    // Calculate font size
+    const fontSizeNum = fontSize ? parseFloat(fontSize) : null;
+    if (fontSizeNum) {
+      fontSizeSum += fontSizeNum;
+      fontSizeCount++;
+    }
+
+    // Generate suggested ID
+    const suggestedId = generateSuggestedId(textContent, x, y);
+
+    textElements.push({
+      id,
+      content: textContent,
+      x,
+      y,
+      fontSize: fontSizeNum,
+      fontFamily,
+      suggestedId,
+      isPath: false,
+      parentGroup,
+    });
+  }
+
+  // Check for path-based text (text converted to paths - common in PDF conversion)
+  const pathNodes = Array.from(svg.getElementsByTagName('path'));
+  let pathTextCount = 0;
+
+  for (const path of pathNodes) {
+    const id = path.getAttribute('id') || '';
+    // Heuristic: paths with text-related IDs or classes
+    if (id.match(/text|label|caption|title|header/i) ||
+        path.getAttribute('class')?.match(/text|font/i)) {
+      pathTextCount++;
+    }
+  }
+
+  if (pathTextCount > 0) {
+    warnings.push(`Found ${pathTextCount} potential text-as-path elements. These may need to be converted to <text> elements for data binding.`);
+  }
+
+  // Sort by Y position (top to bottom), then X position (left to right)
+  textElements.sort((a, b) => {
+    if (Math.abs(a.y - b.y) < 5) { // Within 5 units, sort by X
+      return a.x - b.x;
+    }
+    return a.y - b.y;
+  });
+
+  // Calculate statistics
+  const withId = textElements.filter(t => t.id).length;
+  const withoutId = textElements.filter(t => !t.id).length;
+
+  return {
+    file: svgPath,
+    pageSize: {
+      width: widthNum,
+      height: heightNum,
+      unit,
+    },
+    textElements,
+    statistics: {
+      total: textElements.length,
+      withId,
+      withoutId,
+      pathText: pathTextCount,
+      averageFontSize: fontSizeCount > 0 ? fontSizeSum / fontSizeCount : null,
+    },
+    warnings,
+  };
+}
+
+/**
+ * Generate a suggested ID from text content and position
+ */
+function generateSuggestedId(content: string, x: number, y: number): string {
+  if (!content) {
+    return `text_${Math.round(x)}_${Math.round(y)}`;
+  }
+
+  // Remove common placeholders
+  let cleanContent = content
+    .replace(/^\d+[\).]\s*/, '') // "1. " or "1) "
+    .replace(/^[\(\[]\d+[\)\]]\s*/, '') // "(1) " or "[1] "
+    .replace(/^No\.?\s*/i, '') // "No. " or "No "
+    .trim();
+
+  // Convert to snake_case
+  let suggested = cleanContent
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]/g, '') // Remove special chars
+    .replace(/\s+/g, '_') // Spaces to underscores
+    .replace(/_+/g, '_') // Multiple underscores to single
+    .substring(0, 40);
+
+  // Remove trailing underscore
+  suggested = suggested.replace(/_$/, '');
+
+  // Fallback if empty
+  if (!suggested || suggested.length < 2) {
+    suggested = `text_${Math.round(x)}_${Math.round(y)}`;
+  }
+
+  return suggested;
+}
+
+/**
+ * Analyze multiple SVG files (e.g., page-1.svg and page-follow.svg)
+ */
+export async function analyzeTemplateSvgs(templateDir: string): Promise<SvgTextAnalysis[]> {
+  const files = await fs.readdir(templateDir);
+  const svgFiles = files
+    .filter(f => f.endsWith('.svg'))
+    .sort();
+
+  if (svgFiles.length === 0) {
+    throw new SVGReportError('No SVG files found in template directory', templateDir);
+  }
+
+  const results: SvgTextAnalysis[] = [];
+
+  for (const file of svgFiles) {
+    const filePath = path.join(templateDir, file);
+    const analysis = await extractTextElements(filePath);
+    results.push(analysis);
+  }
+
+  return results;
+}
+
+/**
+ * Print text analysis report to console
+ */
+export function printTextReport(analysis: SvgTextAnalysis): void {
+  console.log(`\n=== Text Elements Analysis: ${path.basename(analysis.file)} ===`);
+  console.log(`Page Size: ${analysis.pageSize.width.toFixed(1)}x${analysis.pageSize.height.toFixed(1)} ${analysis.pageSize.unit}`);
+  
+  console.log('\nStatistics:');
+  console.log(`  Total text elements: ${analysis.statistics.total}`);
+  console.log(`  With ID: ${analysis.statistics.withId}`);
+  console.log(`  Without ID: ${analysis.statistics.withoutId}`);
+  if (analysis.statistics.averageFontSize) {
+    console.log(`  Average font size: ${analysis.statistics.averageFontSize.toFixed(1)}px`);
+  }
+  if (analysis.statistics.pathText > 0) {
+    console.log(`  ⚠ Path-based text: ${analysis.statistics.pathText}`);
+  }
+
+  if (analysis.warnings.length > 0) {
+    console.log('\nWarnings:');
+    for (const warning of analysis.warnings) {
+      console.log(`  ⚠ ${warning}`);
+    }
+  }
+
+  console.log('\nText Elements (top-to-bottom):');
+  console.log('  #  | ID          | X      | Y      | Font   | Content');
+  console.log('  ---|-------------|--------|--------|--------|------------------------------');
+
+  for (let i = 0; i < analysis.textElements.length; i++) {
+    const el = analysis.textElements[i];
+    const idStr = el.id ? el.id.substring(0, 11).padEnd(11) : '[missing]  ';
+    const contentPreview = el.content.length > 30 ? el.content.substring(0, 27) + '...' : el.content.padEnd(30);
+    const fontSizeStr = el.fontSize ? el.fontSize.toFixed(1).padStart(6) : '  N/A';
+    
+    console.log(`  ${String(i + 1).padStart(2)} | ${idStr} | ${el.x.toFixed(1).padStart(6)} | ${el.y.toFixed(1).padStart(6)} | ${fontSizeStr} | ${contentPreview}`);
+  }
+
+  if (analysis.statistics.withoutId > 0) {
+    console.log('\nSuggested IDs for elements without ID:');
+    for (const el of analysis.textElements.filter(e => !e.id)) {
+      console.log(`  "${el.content.substring(0, 40)}" → ${el.suggestedId}`);
+    }
+  }
+
+  console.log('=====================================\n');
+}
+
+/**
+ * Export text elements to JSON for external tools
+ */
+export async function exportTextElementsJson(
+  svgPath: string,
+  outputPath: string
+): Promise<void> {
+  const analysis = await extractTextElements(svgPath);
+  
+  const exportData = {
+    file: analysis.file,
+    pageSize: analysis.pageSize,
+    elements: analysis.textElements.map((el, index) => ({
+      index: index + 1,
+      id: el.id,
+      suggestedId: el.suggestedId,
+      content: el.content,
+      position: { x: el.x, y: el.y },
+      fontSize: el.fontSize,
+      fontFamily: el.fontFamily,
+      parentGroup: el.parentGroup,
+    })),
+    statistics: analysis.statistics,
+    warnings: analysis.warnings,
+  };
+
+  await fs.writeFile(outputPath, JSON.stringify(exportData, null, 2), 'utf-8');
+}

@@ -142,7 +142,7 @@ export async function normalizeSvg(
       const transform = g.getAttribute('transform');
       if (transform && transform.includes('translate')) {
         // Extract translate values
-        const match = transform.match(/translate\(([^,\)]+)(?:,\s*([^\)]+))?\)/);
+        const match = transform.match(/translate\(([^,)]+)(?:,\s*([^)]+))?\)/);
         if (match) {
           const tx = parseFloat(match[1]) || 0;
           const ty = parseFloat(match[2]) || 0;

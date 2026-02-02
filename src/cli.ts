@@ -73,7 +73,7 @@ program
       console.log(`Rendered ${result.totalPages} pages`);
       
       // Create output directory
-      const outputDir = path.join(options.output, manifest.job_id.replace(/[:\/]/g, '_'));
+      const outputDir = path.join(options.output, manifest.job_id.replace(/[:/]/g, '_'));
       await fs.mkdir(outputDir, { recursive: true });
       
       // Write HTML

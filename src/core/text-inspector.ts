@@ -191,8 +191,8 @@ function generateSuggestedId(content: string, x: number, y: number): string {
 
   // Remove common placeholders
   let cleanContent = content
-    .replace(/^\d+[\).]\s*/, '') // "1. " or "1) "
-    .replace(/^[\(\[]\d+[\)\]]\s*/, '') // "(1) " or "[1] "
+    .replace(/^\d+[).]\s*/, '') // "1. " or "1) "
+    .replace(/^[([]\d+[)\]]\s*/, '') // "(1) " or "[1] "
     .replace(/^No\.?\s*/i, '') // "No. " or "No "
     .trim();
 

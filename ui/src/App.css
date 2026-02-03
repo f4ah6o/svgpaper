@@ -1,0 +1,177 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  background: #2c3e50;
+  color: white;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.template-path {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.template-path input {
+  padding: 0.5rem;
+  border: none;
+  border-radius: 4px;
+  width: 300px;
+}
+
+.template-path button {
+  padding: 0.5rem 1rem;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.template-path button:hover {
+  background: #2980b9;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.editor-pane {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  background: white;
+  border-right: 1px solid #ddd;
+}
+
+.preview-pane {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  background: #fafafa;
+}
+
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: #666;
+}
+
+.welcome h2 {
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.welcome code {
+  background: #f0f0f0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+}
+
+.error-banner {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #e74c3c;
+  color: white;
+  padding: 1rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  z-index: 100;
+}
+
+.error-banner button {
+  background: white;
+  color: #e74c3c;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.validation-panel,
+.preview-panel {
+  position: fixed;
+  bottom: 3rem;
+  right: 1rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  max-width: 400px;
+  max-height: 300px;
+  overflow: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  z-index: 50;
+}
+
+.validation-panel h3,
+.preview-panel h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.validation-panel .success {
+  color: #27ae60;
+}
+
+.validation-panel .error {
+  color: #e74c3c;
+}
+
+.validation-panel .warning {
+  color: #f39c12;
+}
+
+.validation-panel ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.validation-panel li {
+  margin-bottom: 0.25rem;
+}
+
+.validation-panel button,
+.preview-panel button {
+  margin-top: 0.5rem;
+  margin-right: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #95a5a6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.validation-panel button:hover,
+.preview-panel button:hover {
+  background: #7f8c8d;
+}

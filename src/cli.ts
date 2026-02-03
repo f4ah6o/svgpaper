@@ -17,6 +17,7 @@ import { validateTemplateFull, printValidationReport } from './core/template-val
 import { generatePreview } from './core/preview-generator.js';
 import { extractTextElements, analyzeTemplateSvgs, printTextReport, exportTextElementsJson } from './core/text-inspector.js';
 import { generateTemplate } from './core/template-generator.js';
+import { startRpcServer } from './core/rpc-server.js';
 
 const program = new Command();
 
@@ -344,6 +345,39 @@ program
       console.log(`  3. Validate: svgreport validate ${result.templateDir}`);
       console.log(`  4. Preview: svgreport preview ${result.templateDir}`);
       console.log('=========================\n');
+    } catch (error) {
+      handleError(error);
+    }
+  });
+
+// server command: Start RPC server
+program
+  .command('server')
+  .description('Start UI-Proxy RPC server')
+  .option('-p, --port <number>', 'Server port', '8788')
+  .option('-h, --host <address>', 'Bind address', '127.0.0.1')
+  .option('-r, --root <path>', 'Workspace root directory', '.')
+  .option('--templates <path>', 'Default templates directory', 'templates')
+  .option('--output <path>', 'Default output directory', 'out')
+  .option('--ui-remote-url <url>', 'UI remote URL for reverse proxy (e.g., https://intra-ui.example/svgpaper-ui/v0.1/)')
+  .option('--ui-allow-host <hosts>', 'Comma-separated list of allowed UI hosts (default: localhost,127.0.0.1)', 'localhost,127.0.0.1')
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      const uiAllowHosts = options.uiAllowHost.split(',').map((h: string) => h.trim());
+      const serverOptions = {
+        port,
+        host: options.host,
+        root: options.root,
+        templatesDir: options.templates,
+        outputDir: options.output,
+        uiRemoteUrl: options.uiRemoteUrl,
+        uiAllowHosts,
+      };
+
+      await startRpcServer(serverOptions);
+      // Keep process alive
+      await new Promise(() => {});
     } catch (error) {
       handleError(error);
     }
